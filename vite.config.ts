@@ -7,7 +7,7 @@ export default defineConfig({
   // 設置 base 為 './' 確保在 GitHub Pages 等子路徑部署時資源路徑正確
   base: './',
   build: {
-    outDir: 'dist',
+    outDir: 'docs',
     assetsDir: 'assets',
   },
 });
