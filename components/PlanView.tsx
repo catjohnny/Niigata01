@@ -117,7 +117,7 @@ const PlanView: React.FC = () => {
                           )}
                           {guideData && (
                                <button 
-                                  onClick={() => toggleGuide(item.guideId!)}
+                                  onClick={() => item.guideId && toggleGuide(item.guideId)}
                                   className={`inline-flex items-center text-[10px] font-bold px-2 py-1 rounded border transition-colors ${
                                       isExpanded 
                                       ? 'bg-gold-500 text-black border-gold-500' 
