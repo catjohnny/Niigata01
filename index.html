@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>新潟奢華之旅 2026</title>
     
-    <!-- Tailwind CSS (Keep CDN for simplicity in this setup) -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- FontAwesome -->
@@ -16,6 +16,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
     
+    <!-- React & ReactDOM (UMD) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel Standalone (for compiling JSX in browser) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
     <script>
       tailwind.config = {
         theme: {
@@ -45,7 +52,7 @@
         background-color: #121212;
         color: #F3F4F6;
         -webkit-font-smoothing: antialiased;
-        overscroll-behavior-y: none;
+        overscroll-behavior-y: none; /* Prevent pull-to-refresh on mobile */
       }
       /* Custom Scrollbar for Webkit */
       ::-webkit-scrollbar {
@@ -68,8 +75,16 @@
       .pb-safe {
         padding-bottom: env(safe-area-inset-bottom);
       }
+      /* Animation for Weather Widget */
+      @keyframes slideUp {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
+      }
+      .weather-modal-content {
+           animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
     </style>
-<script type="importmap">
+  <script type="importmap">
 {
   "imports": {
     "react": "https://aistudiocdn.com/react@^19.2.0",
@@ -83,6 +98,1267 @@
 </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="./index.tsx"></script>
+
+    <script type="text/babel">
+      const { useState, useEffect, useRef } = React;
+
+      // --- CONSTANTS & DATA ---
+      
+      const GUIDE_LOCATIONS = [
+        {
+            id: 'airport',
+            title: '新潟機場 (KIJ)',
+            subtitle: '交通接駁資訊',
+            description: `【接駁車時刻表】
+從新潟機場出發 ↓ 抵達新潟車站
+
+• 18:00 (大巴) → 18:23
+• 18:20 (公車) → 18:49
+• 18:30 (大巴) → 18:53
+• 18:55 (大巴) → 19:18
+• 19:05 (公車) → 19:32
+• 19:15 (公車) → 19:42
+• 19:45 (大巴) → 20:08
+• 20:25 (公車) → 20:52
+• 20:35 (大巴) → 20:58
+• 20:45 (公車) → 21:12
+• 21:10 (大巴) → 21:33`,
+            imagePlaceholder: 'https://picsum.photos/id/1059/800/600',
+            details: [
+                { label: '車資', value: '大巴(直達) / 公車(各停)' },
+                { label: '支付', value: '現金 / IC卡' }
+            ]
+        },
+        {
+            id: 'niigata_daiichi',
+            title: '新潟第一飯店',
+            subtitle: 'Niigata Daiichi Hotel',
+            description: `📍 B1F (地下一樓)
+♨️ 大浴場 (みなとの湯)：
+• 設有男性大浴場與女性大浴場。
+• 女性浴場需專用鑰匙。
+• 營業時間：15:00 - 02:00 (深夜) / 05:00 - 09:30。
+
+📍 1F (一樓)
+服務設施：
+• 櫃檯與大廳、保全置物櫃、AED。
+• 免費備品區 (自由取用，含女性專用備品)。
+• 櫃檯提供租借：手機充電器、熨斗、裁縫組。
+商店/服務：
+🏪 便利商店 (LAWSON)： 與飯店大廳直通。
+🚲 自行車租賃： 每次 500 日圓 (需證件)。
+
+📍 2F (二樓)
+🍴 早餐會場 (mahoro)
+• 多功能室 (201、202)
+🚬 吸菸室
+
+📍 3F (三樓)
+娛樂/休憩：
+📚 漫畫室： 藏書超過 15,000 冊，設有付費按摩椅 (200日圓)。
+實用設施：
+• 洗衣房 (ランドリー)：投幣式洗衣機、烘乾機，設有女性專用洗衣房。
+   (洗衣 30分 300円 / 烘乾 30分 100円)
+🚿 女性專用淋浴間 (需鑰匙)。
+• 無障礙廁所。
+• 自動販賣機、製冰機、微波爐`,
+            imagePlaceholder: 'https://picsum.photos/id/1031/800/600',
+            details: [
+                { label: 'MapCode', value: 'Google Maps' },
+                { label: '便利商店', value: 'Lawson (1F直通)' }
+            ]
+        },
+        {
+             id: 'xebio',
+             title: 'XEBIO 運動快線',
+             subtitle: '新潟車站店',
+             description: `ゼビオスポーツエクスプレス 新潟駅店
+             
+任務：幫小孩買雪靴 ❄️
+• 出發前量一下弟弟腳尺寸
+• 確認哥哥的雪靴是否還穿得下`,
+             imagePlaceholder: 'https://picsum.photos/id/1070/800/600',
+        },
+        {
+            id: 'senbei',
+            title: '新潟仙貝王國',
+            subtitle: '手作仙貝體驗',
+            description: `【體驗資訊】
+• 受付期間：9時30分～16時30分
+• 所要時間：體驗菜單因內容不同，最長約30分鐘
+（煎餅烘烤體驗・煎餅調味體驗共五種）
+
+【費用】
+● 入場料：無料
+● 超特大煎餅：1片 1,800日圓
+● ばかうけ味道體驗：15片1組 1,500日圓`,
+            imagePlaceholder: 'https://picsum.photos/id/1060/800/600',
+            details: [
+                { label: 'MapCode', value: '524 050 121*18' },
+                { label: '營業時間', value: '09:30 - 16:30' }
+            ]
+        },
+        {
+            id: 'railway',
+            title: '新津鐵道資料館',
+            subtitle: '鐵道迷必訪',
+            description: `【票價】
+• 一般：390日圓
+• 高中生・大學生：260日圓
+• 小學生・中學生：130日圓
+
+【體驗設施】
+• 迷你 SL 搭乘體驗：每人每次 130日圓
+• 電車駕駛模擬器：每人每次 100日圓`,
+            imagePlaceholder: 'https://picsum.photos/id/1058/800/600',
+            details: [
+                { label: 'MapCode', value: '32 467 762*26' },
+                { label: '門票', value: '390 JPY' }
+            ]
+        },
+        {
+            id: 'befco',
+            title: 'Befco ばかうけ展望室',
+            subtitle: '朱鷺展覽館 31F',
+            description: `【參觀資訊】
+• 開館時間：8:00-22:00
+ (最終入場 21:30 / 周五~17:00)
+
+【費用】
+• 大人：300日圓
+• 大學及高中生：200日圓
+• 中學生以下：免費
+ (其他特殊展覽門票另計)`,
+            imagePlaceholder: 'https://picsum.photos/id/1042/800/600',
+            details: [
+                { label: 'MapCode', value: 'Google Maps' },
+                { label: '門票', value: '300 JPY' }
+            ]
+        },
+        {
+            id: 'comfort_hotel',
+            title: 'Comfort Hotel 燕三条',
+            subtitle: '三條凱富酒店',
+            description: `【停車資訊】
+■ 場內停車場 (平面)
+• 高度限制：無
+• 台數：87台
+• 費用：15:00～翌10:00 免費
+(依住宿方案的停留時間為準，其他時間禁止停車)`,
+            imagePlaceholder: 'https://picsum.photos/id/1000/800/600',
+            details: [
+                { label: 'MapCode', value: '58 833 183*73' },
+                { label: '停車', value: '免費 (住客)' }
+            ]
+        },
+        {
+            id: 'furusato',
+            title: '新潟故鄉村',
+            subtitle: '新潟ふるさと村',
+            description: `【參觀資訊】
+• 營業時間：9:30～17:30
+ (連續假期有時會延長。各飲食店可自行決定營業時間。)
+• 入場費：免入場費
+• 官網：http://furusatomura.pref.niigata.jp/cnt/
+• 延伸閱讀：https://vocus.cc/article/64aa8cf5fd897800017c807f
+
+這裡集合了新潟的美食與歷史，室內有大型遊樂設施，適合親子同樂。`,
+            imagePlaceholder: 'https://picsum.photos/id/1084/800/600',
+            details: [
+                { label: 'MapCode', value: '32 692 564*67' },
+                { label: '電話', value: '025-230-3030' }
+            ]
+        },
+        {
+            id: 'yahiko',
+            title: '彌彥神社 & 纜車',
+            subtitle: '越後第一宮',
+            description: `【彌彥神社】
+擁有2400年歷史，充滿靈氣的能量景點。
+
+【彌彥山纜車】
+• 交通：從參拜殿側至山麓站，搭乘免費接駁巴士約3分鐘。
+• 費用：成人800日圓／兒童400日圓 (3歲以下免費)
+• 營業時間：依時期而異
+• 公休日：不定期
+• 延伸閱讀：https://vocus.cc/article/64aa8cf5fd897800017c807f`,
+            imagePlaceholder: 'https://picsum.photos/id/1036/800/600',
+            details: [
+                { label: 'MapCode', value: '190 129 317*13' },
+                { label: '電話', value: '0256-94-4141' }
+            ]
+        },
+        {
+            id: 'tsubame_center',
+            title: '燕三條地場產業振興中心',
+            subtitle: '金屬工藝聖地',
+            description: `燕三條以金屬加工與洋食器聞名。這裡匯集了當地最高品質的餐具、鍋具與工藝品，是選購伴手禮的最佳地點。
+
+• 官網：https://www.tsjiba.or.jp/ch/
+• 延伸閱讀：https://vocus.cc/article/64aa8cf5fd897800017c807f`,
+            imagePlaceholder: 'https://picsum.photos/id/1013/800/600',
+            details: [
+                { label: 'MapCode', value: '58 832 492*03' },
+                { label: '電話', value: '0256-32-2311' }
+            ]
+        },
+        {
+            id: 'hangzhou',
+            title: '杭州飯店',
+            subtitle: '元祖背脂拉麵',
+            description: `【餐廳資訊】
+• 評分：3.9 (2,699則評論)
+• 預算：¥1,000 - ¥2,000
+• 類別：拉麵、餃子、中國菜
+• 特色：燕三條知名的「背脂拉麵」發源地。極粗麵條搭配濃郁醬油湯頭與滿滿背脂，口味獨特。`,
+            imagePlaceholder: 'https://picsum.photos/id/1062/800/600',
+            details: [
+                { label: 'MapCode', value: '190 019 628*63' },
+                { label: '推薦', value: '背脂拉麵' }
+            ]
+        },
+        {
+            id: 'angel_shuttle',
+            title: '飯店接駁巴士',
+            subtitle: '越後湯澤站西口 ⇄ 天使格昂迪亞',
+            description: `【時刻表】(案內所發 → 飯店發)
+
+08:30 → 08:30
+09:00 → 09:00
+09:30 → ★09:45
+10:00 → ★10:15
+10:30 → ★10:45
+11:00 → ★11:15
+11:30 → ★11:45
+12:00 → ★12:15
+----  → ★12:45
+13:00 → ★13:15
+13:30 → ★13:45
+14:00 → 14:00
+14:30 → 14:30
+15:00 → 15:00
+15:30 → ★15:45
+16:00 → ★16:15
+16:30 → ★16:45
+17:00 → ★17:15
+----  → ★17:45
+18:00 → 18:00
+18:30 → ---
+19:30 → 19:00
+20:30 → 20:00
+※21:30 → ※21:00
+
+📌 備註
+※印：僅週五、週六運行（特定日期亦視為週五、週六）。
+★印：僅在指定日期（如 12/26～1/4、1/9～11、1/16～18、1/23～3/8）運行。`,
+            imagePlaceholder: 'https://picsum.photos/id/1071/800/600',
+            details: [
+                { label: '乘車處', value: '越後湯澤站西口' },
+                { label: '費用', value: '免費 (房客)' }
+            ]
+        },
+        {
+            id: 'kiyotsu',
+            title: '清津峽',
+            subtitle: '光之隧道 (Tunnel of Light)',
+            description: '日本三大峽谷之一。「光之隧道」是著名的藝術裝置，隧道盡頭的水盤倒映著峽谷的壯麗景色，形成夢幻般的倒影，是絕對不能錯過的打卡聖地。',
+            imagePlaceholder: 'https://picsum.photos/id/1015/800/600',
+            details: [
+                { label: 'MapCode', value: '使用 Google Maps' },
+                { label: '門票', value: '成人 1000日圓' }
+            ]
+        },
+        {
+            id: 'strawberry',
+            title: '湯澤草莓村',
+            subtitle: '雪国アグリパーク湯沢いちご村',
+            description: `【營業資訊】
+• 地址：新潟県南魚沼郡湯沢町神立750-1
+• 時間：10:00–15:30 (15:30最後入場)
+• 備註：出發前請事先確認是否營業
+
+位於雪國的溫室草莓園，享受現採新鮮草莓的樂趣。`,
+            imagePlaceholder: 'https://picsum.photos/id/1080/800/600',
+            details: [
+                { label: 'MapCode', value: 'Google Maps' },
+                { label: '活動', value: '採草莓' }
+            ]
+        }
+      ];
+
+      const ITINERARY = [
+        {
+            date: '1/9',
+            dayOfWeek: '週五',
+            title: '抵達新潟',
+            items: [
+                { time: '13:55', title: 'TPE 桃園機場出發 (IT228)', type: 'transport', description: '台灣虎航 第一航廈', highlight: true },
+                { time: '18:00', title: '抵達新潟機場 (KIJ)', type: 'transport', description: '辦理入境手續。前往接駁巴士站。', highlight: true, guideId: 'airport' },
+                { time: '19:00', title: '前往新潟站', type: 'transport', description: '機場接駁巴士 (時刻表詳見說明)。車資：成人470日圓。' },
+                { time: 'Check-in', title: '新潟第一飯店', type: 'hotel', description: '離車站徒步1分鐘。B1F有大浴場。1F連通Lawson。', locationLink: 'https://maps.app.goo.gl/NiigataDaiichi', guideId: 'niigata_daiichi' },
+                { time: '晚餐', title: '廻轉壽司 弁慶 或 Royal Host', type: 'food', description: '位於Pia Bandai或車站南口。' },
+                { time: '購物', title: 'XEBIO 運動快線', type: 'activity', description: '新潟車站店。採買雪靴。', guideId: 'xebio' }
+            ]
+        },
+        {
+            date: '1/10',
+            dayOfWeek: '週六',
+            title: '文化與歷史',
+            items: [
+                { time: '09:00', title: '取車：豐田租車', type: 'transport', description: '新潟車站南口店。預約單號：98129667400。', locationLink: 'https://maps.app.goo.gl/ToyotaRentNiigata', highlight: true },
+                { time: '上午', title: '新潟仙貝王國', type: 'activity', description: '體驗製作特大仙貝。', locationLink: 'https://maps.app.goo.gl/SenbeiKingdom', mapCode: '524 050 121*18', guideId: 'senbei' },
+                { time: '下午', title: '新津鐵道資料館', type: 'activity', description: '新幹線實體車廂展示。', locationLink: 'https://maps.app.goo.gl/NiitsuRailway', mapCode: '32 467 762*26', guideId: 'railway' },
+                { time: '16:43', title: 'Befco ばかうけ展望室', type: 'activity', description: '欣賞夕陽與夜景。最後入場21:30。', locationLink: 'https://maps.app.goo.gl/BefcoObservatory', guideId: 'befco' },
+                { time: 'Check-in', title: '燕三條凱富飯店', type: 'hotel', description: 'Comfort Hotel。平面停車場免費。', locationLink: 'https://maps.app.goo.gl/ComfortTsubame', mapCode: '58 833 183*73', guideId: 'comfort_hotel' }
+            ]
+        },
+        {
+            date: '1/11',
+            dayOfWeek: '週日',
+            title: '彌彥神社與燕三條',
+            items: [
+                { time: '09:30', title: '新潟故鄉村', type: 'activity', description: '大型複合設施。免入場費。', locationLink: 'https://maps.app.goo.gl/FurusatoVillage', mapCode: '32 692 564*67', guideId: 'furusato' },
+                { time: '12:00', title: '彌彥神社 & 纜車', type: 'activity', description: '越後第一宮。搭乘免費接駁車至纜車站。', locationLink: 'https://maps.app.goo.gl/YahikoShrine', mapCode: '190 129 317*13', guideId: 'yahiko' },
+                { time: '下午', title: '燕三條地場產振興中心', type: 'activity', description: '匯集當地金屬工藝品與餐具。', locationLink: 'https://maps.app.goo.gl/TsubameCenter', mapCode: '58 832 492*03', guideId: 'tsubame_center' },
+                { time: '購物', title: 'High Grade Store', type: 'activity', description: '株式会社カンダ。餐具Outlet。', mapCode: '58 828 829*78' },
+                { time: '晚餐', title: '杭州飯店', type: 'food', description: '元祖背脂拉麵。', locationLink: 'https://maps.app.goo.gl/HangzhouHanten', mapCode: '190 019 628*63', guideId: 'hangzhou' },
+                { time: '超市', title: 'AEON Mall 新潟龜田', type: 'food', description: '採買補給。', mapCode: '58 832 707*36' },
+                { time: '超市', title: 'AEON Style 燕三條須頃', type: 'food', description: '2025/11新開幕。' },
+                { time: '超市', title: 'Challenger 燕三條店', type: 'food', description: '當地超市。', mapCode: '58 863 291*74' },
+                { time: '二手', title: '2nd Street', type: 'activity', description: 'Sanjo店 (3.2km) / Tsubamesanjo店 (3.3km)。', mapCode: '58 832 819*87' }
+            ]
+        },
+        {
+            date: '1/12',
+            dayOfWeek: '週一',
+            title: '藝術與滑雪',
+            items: [
+                { time: '上午', title: '清津峽', type: 'activity', description: '光之隧道 (Tunnel of Light)。日本三大峽谷之一。', locationLink: 'https://maps.app.goo.gl/KiyotsuGorge', guideId: 'kiyotsu' },
+                { time: '12:00', title: '領取滑雪裝備', type: 'activity', description: '青達雪具。已預約12:00-14:00時段 (一大一小)。', highlight: true },
+                { time: '15:00', title: '越後湯澤站', type: 'transport', description: '接駁巴士時刻表 (點擊查看詳細表格)。', guideId: 'angel_shuttle' },
+                { time: 'Check-in', title: '天使格昂迪亞飯店', type: 'hotel', description: 'Hotel Angel Grandia Echigo Nakazato。親子滑雪度假村。含Buffet晚餐。', locationLink: 'https://maps.app.goo.gl/AngelGrandia' }
+            ]
+        },
+        {
+            date: '1/13',
+            dayOfWeek: '週二',
+            title: '滑雪日 Day 1',
+            items: [
+                { time: '09:00', title: '媽媽滑雪課', type: 'activity', description: '09:00 - 15:00。教練預約確認。' },
+                { time: '全天', title: '玩雪 / 自主滑雪', type: 'activity', description: '兒童雪地樂園或初學者滑道。' },
+                { time: '晚上', title: '飯店 Buffet & 溫泉', type: 'food', description: '滑雪後的放鬆時光。' }
+            ]
+        },
+        {
+            date: '1/14',
+            dayOfWeek: '週三',
+            title: '滑雪日 Day 2',
+            items: [
+                { time: '09:00', title: '媽媽滑雪課', type: 'activity', description: '09:00 - 15:00。' },
+                { time: '下午', title: '樂哥加入', type: 'info', description: '樂哥預計今天加入滑雪行程。' },
+                { time: '晚上', title: '飯店 Buffet', type: 'food', description: '' }
+            ]
+        },
+        {
+            date: '1/15',
+            dayOfWeek: '週四',
+            title: '滑雪與新幹線',
+            items: [
+                { time: '09:00', title: '自由滑雪時間', type: 'activity', description: '把握最後滑雪時光 (早上到下午)。' },
+                { time: '15:57', title: '上越新幹線 (Toki 329)', type: 'transport', description: '越後湯澤站出發 -> 16:42 抵達新潟站。票價 ¥5,280/人。 (45分鐘)', highlight: true },
+                { time: 'Check-in', title: '新潟第一飯店', type: 'hotel', description: '新潟市區商務飯店 (3540/晚)。不含早餐。', guideId: 'niigata_daiichi' },
+                { time: '晚上', title: '新潟站前', type: 'food', description: '車站周邊晚餐。' }
+            ]
+        },
+        {
+            date: '1/16',
+            dayOfWeek: '週五',
+            title: '購物與回程',
+            items: [
+                { time: '上午', title: '市區購物採買', type: 'activity', description: '新潟市區各大 Shopping Mall 採購 (Aeon / Bandai City 等)。' },
+                { time: '17:00', title: '前往新潟機場', type: 'transport', description: '從新潟站前往機場 (巴士/計程車)。' },
+                { time: '19:00', title: '新潟機場出發 (IT229)', type: 'transport', description: 'KIJ 19:00 ✈️ TPE 22:30。', highlight: true },
+                { time: '22:30', title: '抵達台灣', type: 'info', description: '平安返家。' }
+            ]
+        }
+      ];
+
+      const PRE_TRIP_CHECKLIST = [
+        { id: '1', text: '護照 (有效期6個月以上)', completed: false },
+        { id: '2', text: '信用卡 & 現金 (日幣/台幣)', completed: false },
+        { id: '3', text: '日文譯本駕照', completed: false },
+        { id: '4', text: '台灣駕照正本', completed: false },
+        { id: '5', text: '飯店訂房憑證 (PDF/列印)', completed: false },
+        { id: '6', text: 'SIM卡 / 漫遊設定', completed: false },
+        { id: '7', text: '行動電源 & 充電線', completed: false },
+        { id: '8', text: '滑雪裝備尺寸確認', completed: false },
+        { id: '9', text: '個人藥品 / 酒精 / 口罩', completed: false },
+        { id: '10', text: '行李秤', completed: false },
+        { id: '11', text: '原子筆 (填入境卡用)', completed: false },
+        { id: '12', text: '衛生紙 / 濕紙巾', completed: false },
+        { id: '13', text: '飯店預約確認信 (天使格昂迪亞)', completed: false },
+      ];
+
+      // --- COMPONENTS ---
+
+      // Weather Component
+      const WeatherWidget = () => {
+        const [forecast, setForecast] = useState([]);
+        const [loading, setLoading] = useState(true);
+        const [isOpen, setIsOpen] = useState(false);
+
+        // Helper to get day name
+        const getDayName = (dateStr) => {
+            const date = new Date(dateStr);
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const d = new Date(date);
+            d.setHours(0,0,0,0);
+            
+            if (d.getTime() === today.getTime()) return '今日';
+            const days = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+            return `${date.getMonth() + 1}/${date.getDate()} (${days[date.getDay()]})`;
+        };
+
+        // Helper for icons and mapping codes to text
+        const getWeatherInfo = (codeStr) => {
+            const code = parseInt(codeStr);
+            if (code >= 100 && code < 200) return { icon: "fa-sun text-yellow-500", label: "晴朗" };
+            if (code >= 200 && code < 300) {
+                if (code >= 200 && code <= 210) return { icon: "fa-cloud text-gray-400", label: "多雲" };
+                if (code >= 211 && code <= 299) return { icon: "fa-cloud-rain text-gray-300", label: "陰有雨" };
+                return { icon: "fa-cloud text-gray-400", label: "多雲" };
+            } 
+            if (code >= 300 && code < 400) return { icon: "fa-umbrella text-blue-400", label: "雨天" };
+            if (code >= 400) return { icon: "fa-snowflake text-white animate-pulse", label: "下雪" };
+            return { icon: "fa-cloud-sun text-gray-400", label: "多雲時晴" };
+        };
+
+        useEffect(() => {
+            // Fetch Niigata (150000) forecast from JMA
+            fetch('https://www.jma.go.jp/bosai/forecast/data/forecast/150000.json')
+            .then(res => res.json())
+            .then(data => {
+                if (data && data[0] && data[1]) {
+                    const result = [];
+                    
+                    // --- Process Weekly Data (data[1]) as the backbone ---
+                    const weeklySeries = data[1].timeSeries;
+                    const weeklyDates = weeklySeries[0].timeDefines;
+                    const weeklyCodes = weeklySeries[0].areas[0].weatherCodes;
+                    const weeklyMin = weeklySeries[1].areas[0].tempsMin;
+                    const weeklyMax = weeklySeries[1].areas[0].tempsMax;
+
+                    // --- Process Daily Data (data[0]) for more detail on first 2 days ---
+                    const dailySeries = data[0].timeSeries;
+                    const dailyDates = dailySeries[0].timeDefines;
+                    const dailyWeathers = dailySeries[0].areas[0].weathers;
+                    const dailyPops = dailySeries[1].areas[0].pops; 
+                    
+                    // Map Daily Pops to Dates
+                    const popMap = {};
+                    const popTimeDefines = dailySeries[1].timeDefines;
+                    
+                    popTimeDefines.forEach((t, i) => {
+                        const dayKey = t.substring(0, 10);
+                        const val = parseInt(dailyPops[i]);
+                        if (!popMap[dayKey] || val > parseInt(popMap[dayKey])) {
+                            popMap[dayKey] = dailyPops[i] + '%';
+                        }
+                    });
+
+                    // Combine into final array
+                    weeklyDates.forEach((dateStr, i) => {
+                        const dayKey = dateStr.substring(0, 10);
+                        
+                        // Defaults from Weekly
+                        let code = weeklyCodes[i];
+                        let minT = weeklyMin[i] === '' ? '-' : weeklyMin[i] + '°';
+                        let maxT = weeklyMax[i] === '' ? '-' : weeklyMax[i] + '°';
+                        let text = '';
+                        let pop = '-';
+
+                        // Overlay Daily Data if available
+                        const dailyIndex = dailyDates.findIndex((d) => d.startsWith(dayKey));
+                        if (dailyIndex !== -1) {
+                            text = dailyWeathers[dailyIndex]; 
+                        }
+
+                        if (popMap[dayKey]) {
+                            pop = popMap[dayKey];
+                        }
+
+                        // If no text description, generate from code
+                        if (!text) {
+                            text = getWeatherInfo(code.toString()).label;
+                        }
+
+                        result.push({
+                            date: dateStr,
+                            code: code.toString(),
+                            text,
+                            pop,
+                            minTemp: minT,
+                            maxTemp: maxT
+                        });
+                    });
+
+                    setForecast(result);
+                }
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error("Weather fetch failed", err);
+                setLoading(false);
+            });
+        }, []);
+
+        return (
+            <React.Fragment>
+            {/* Trigger Button */}
+            <button 
+                onClick={() => setIsOpen(true)}
+                className="w-full bg-gradient-to-r from-luxury-charcoal to-luxury-black border border-gold-500/30 rounded-xl p-4 flex justify-between items-center shadow-lg active:scale-[0.98] transition-all group"
+            >
+                <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center border border-gray-700 shadow-inner group-hover:border-gold-500/50 transition-colors">
+                        <i className="fas fa-location-dot text-gold-500 text-lg"></i>
+                    </div>
+                    <div className="text-left">
+                        <div className="text-base font-bold text-gray-100 group-hover:text-gold-400 transition-colors">新潟市 (Niigata)</div>
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider">點擊查看一週天氣</div>
+                    </div>
+                </div>
+                
+                {!loading && forecast.length > 0 && (
+                    <div className="flex items-center gap-3 bg-black/20 px-3 py-1.5 rounded-lg border border-white/5">
+                        <i className={`fas ${getWeatherInfo(forecast[0].code).icon} text-lg`}></i>
+                        <div className="flex flex-col items-end leading-none">
+                            <span className="text-xs font-mono text-gray-200">{forecast[0].minTemp}/{forecast[0].maxTemp}</span>
+                        </div>
+                    </div>
+                )}
+            </button>
+
+            {/* Bottom Sheet Modal */}
+            {isOpen && (
+                <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center">
+                    {/* Backdrop */}
+                    <div 
+                        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                        onClick={() => setIsOpen(false)}
+                    ></div>
+
+                    {/* Modal Content */}
+                    <div className="weather-modal-content relative w-full sm:max-w-md bg-luxury-gray rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden border-t sm:border border-gold-500/20 max-h-[85vh] flex flex-col mx-auto">
+                        
+                        {/* Header */}
+                        <div className="flex-none bg-luxury-charcoal p-4 flex justify-between items-center border-b border-gray-700 shadow-md z-10">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-gold-500/10 p-2 rounded-full">
+                                    <i className="fas fa-cloud-sun text-gold-400"></i>
+                                </div>
+                                <div>
+                                    <h3 className="text-white font-bold text-lg">新潟市一週天氣</h3>
+                                    <p className="text-[10px] text-gray-400">資料來源: 日本氣象廳 (JMA)</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setIsOpen(false)}
+                                className="w-8 h-8 rounded-full bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 flex items-center justify-center transition-colors"
+                            >
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
+
+                        {/* Scrollable List */}
+                        <div className="overflow-y-auto p-2 pb-8 sm:pb-2 bg-luxury-black/95">
+                            {loading ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                                    <i className="fas fa-circle-notch fa-spin text-2xl text-gold-500 mb-2"></i>
+                                    <span className="text-xs">更新氣象資料中...</span>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {forecast.map((day, idx) => {
+                                        const info = getWeatherInfo(day.code);
+                                        return (
+                                            <div key={idx} className="bg-luxury-charcoal/50 p-3 rounded-xl border border-gray-800 flex items-center justify-between">
+                                                {/* Date & Icon */}
+                                                <div className="flex items-center gap-4 w-1/3">
+                                                    <div className="flex flex-col">
+                                                        <span className={`text-sm font-bold ${idx===0 ? 'text-gold-400' : 'text-gray-300'}`}>
+                                                            {getDayName(day.date)}
+                                                        </span>
+                                                        {idx === 0 && <span className="text-[10px] text-gold-600 font-bold">TODAY</span>}
+                                                    </div>
+                                                </div>
+
+                                                {/* Weather Icon & POP */}
+                                                <div className="flex flex-col items-center justify-center w-1/3">
+                                                    <i className={`fas ${info.icon} text-2xl mb-1`}></i>
+                                                    {day.pop !== '-' && (
+                                                        <span className="text-[10px] font-bold text-blue-400 bg-blue-900/30 px-1.5 rounded-full">
+                                                            <i className="fas fa-umbrella mr-1"></i>{day.pop}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Temps & Desc */}
+                                                <div className="flex flex-col items-end w-1/3">
+                                                    <div className="flex items-center gap-1 font-mono font-bold text-base">
+                                                        <span className="text-blue-300">{day.minTemp}</span>
+                                                        <span className="text-gray-600">/</span>
+                                                        <span className="text-red-300">{day.maxTemp}</span>
+                                                    </div>
+                                                    <span className="text-[10px] text-gray-500 text-right line-clamp-1 max-w-full">
+                                                        {day.text}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+            </React.Fragment>
+        );
+      };
+
+      // 1. PlanView (Integrated Guide & Weather)
+      const PlanView = () => {
+        // Init activeDay from localStorage or default
+        const [activeDay, setActiveDay] = useState(() => {
+            return localStorage.getItem('niigata_active_day') || ITINERARY[0].date;
+        });
+
+        // Track expanded guide item
+        const [expandedGuideId, setExpandedGuideId] = useState(null);
+
+        useEffect(() => {
+            localStorage.setItem('niigata_active_day', activeDay);
+        }, [activeDay]);
+
+        const getIcon = (type) => {
+          switch (type) {
+            case 'transport': return 'fa-plane-departure';
+            case 'hotel': return 'fa-bed';
+            case 'food': return 'fa-utensils';
+            case 'activity': return 'fa-camera';
+            case 'info': return 'fa-circle-info';
+            default: return 'fa-circle';
+          }
+        };
+
+        const selectedItinerary = ITINERARY.find(d => d.date === activeDay);
+
+        const toggleGuide = (id) => {
+            setExpandedGuideId(expandedGuideId === id ? null : id);
+        }
+
+        return (
+          <div className="min-h-full bg-luxury-black">
+            {/* Date Selector */}
+            <div className="sticky top-0 bg-luxury-black/95 backdrop-blur-md z-20 border-b border-gray-800 py-4 px-2 overflow-x-auto no-scrollbar flex space-x-4">
+              {ITINERARY.map((day) => (
+                <button
+                  key={day.date}
+                  onClick={() => setActiveDay(day.date)}
+                  className={`flex flex-col items-center min-w-[60px] p-2 rounded-xl border transition-all duration-300 ${
+                    activeDay === day.date
+                      ? 'bg-gold-500 border-gold-400 text-luxury-black shadow-lg shadow-gold-500/20'
+                      : 'bg-luxury-charcoal border-gray-700 text-gray-400'
+                  }`}
+                >
+                  <span className="text-xs font-bold uppercase tracking-wider">{day.dayOfWeek}</span>
+                  <span className="text-lg font-serif font-bold">{day.date.split('/')[1]}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Weather Widget (5 Days) */}
+            <div className="px-6 pt-6 pb-2">
+                 <WeatherWidget />
+            </div>
+
+            {/* Timeline */}
+            <div className="p-6 relative">
+              <div className="absolute left-9 top-6 bottom-6 w-0.5 bg-gradient-to-b from-gold-500/0 via-gold-500/30 to-gold-500/0"></div>
+
+              {selectedItinerary ? (
+                <div className="space-y-8">
+                  <div className="ml-10 mb-6">
+                      <h2 className="text-2xl font-serif text-gold-400">{selectedItinerary.title}</h2>
+                      <p className="text-gray-500 text-sm italic">{selectedItinerary.date}, 2026</p>
+                  </div>
+
+                  {selectedItinerary.items.map((item, index) => {
+                    const guideData = item.guideId ? GUIDE_LOCATIONS.find(g => g.id === item.guideId) : null;
+                    const isExpanded = expandedGuideId === item.guideId;
+
+                    return (
+                        <div key={index} className="relative flex items-start group">
+                        <div className={`absolute left-0 w-7 h-7 rounded-full border-2 flex items-center justify-center z-10 bg-luxury-black ${
+                            item.highlight ? 'border-gold-400 text-gold-400 shadow-[0_0_10px_rgba(212,175,55,0.4)]' : 'border-gray-600 text-gray-600'
+                        }`}>
+                            <i className={`fas ${getIcon(item.type)} text-xs`}></i>
+                        </div>
+
+                        <div className="ml-10 w-full">
+                            <div className={`p-4 rounded-lg border backdrop-blur-sm transition-all duration-300 ${
+                            item.highlight 
+                                ? 'bg-gradient-to-br from-luxury-charcoal to-luxury-gray border-gold-400/50 shadow-md' 
+                                : 'bg-luxury-charcoal/50 border-gray-800'
+                            }`}>
+                            <div className="flex justify-between items-start mb-1">
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                                item.highlight ? 'bg-gold-500 text-black' : 'bg-gray-700 text-gray-300'
+                                }`}>
+                                {item.time}
+                                </span>
+                            </div>
+                            
+                            <h3 className="text-lg font-bold text-gray-100 mt-2 mb-1">{item.title}</h3>
+                            {item.description && (
+                                <p className="text-sm text-gray-400 leading-relaxed font-sans whitespace-pre-line">{item.description}</p>
+                            )}
+                            
+                            {/* MapCode & Location Link */}
+                            <div className="flex flex-wrap gap-2 mt-3">
+                                {item.mapCode && (
+                                    <div className="text-[10px] text-gold-400 font-mono bg-luxury-black/50 px-2 py-1 rounded border border-gold-600/30">
+                                        MAPCODE: {item.mapCode}
+                                    </div>
+                                )}
+                                {item.locationLink && (
+                                    <a 
+                                    href={item.locationLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center text-[10px] font-bold text-gray-400 hover:text-white transition-colors uppercase border border-gray-700 px-2 py-1 rounded bg-gray-800"
+                                    >
+                                    <i className="fas fa-map-marked-alt mr-1"></i> 地圖
+                                    </a>
+                                )}
+                                {guideData && (
+                                     <button 
+                                        onClick={() => toggleGuide(item.guideId)}
+                                        className={`inline-flex items-center text-[10px] font-bold px-2 py-1 rounded border transition-colors ${
+                                            isExpanded 
+                                            ? 'bg-gold-500 text-black border-gold-500' 
+                                            : 'bg-gray-800 text-gold-400 border-gold-400/50 hover:bg-gold-500/10'
+                                        }`}
+                                     >
+                                        <i className={`fas ${isExpanded ? 'fa-book-open' : 'fa-book'} mr-1`}></i> 
+                                        {isExpanded ? '收起介紹' : '詳細資訊'}
+                                     </button>
+                                )}
+                            </div>
+
+                            {/* Expanded Guide Content */}
+                            {guideData && isExpanded && (
+                                <div className="mt-4 pt-4 border-t border-gray-700 animate-fadeIn">
+                                    <div className="relative h-40 w-full rounded-lg overflow-hidden mb-3">
+                                        <img src={guideData.imagePlaceholder} alt={guideData.title} className="w-full h-full object-cover" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                                        <div className="absolute bottom-2 left-2">
+                                            <div className="text-gold-400 text-xs font-serif italic">{guideData.subtitle}</div>
+                                        </div>
+                                    </div>
+                                    <div className="text-gray-300 text-sm leading-relaxed text-justify mb-3 whitespace-pre-wrap guide-content font-sans">
+                                        {guideData.description}
+                                    </div>
+                                    {guideData.details && (
+                                        <div className="grid grid-cols-2 gap-2">
+                                        {guideData.details.map((detail, i) => (
+                                            <div key={i} className="bg-luxury-black/60 p-2 rounded border border-gray-800">
+                                            <div className="text-[10px] text-gray-500 uppercase">{detail.label}</div>
+                                            <div className="text-xs text-white font-mono">{detail.value}</div>
+                                            </div>
+                                        ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            </div>
+                        </div>
+                        </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 mt-10">請選擇日期</div>
+              )}
+            </div>
+          </div>
+        );
+      };
+
+      // 2. WalletView
+      const WalletView = () => {
+        const [rate, setRate] = useState(0.22);
+        const [calcInput, setCalcInput] = useState('');
+        const [calcResult, setCalcResult] = useState(null);
+        
+        const [expenses, setExpenses] = useState([]);
+        const [newExpenseName, setNewExpenseName] = useState('');
+        const [newExpenseAmount, setNewExpenseAmount] = useState('');
+        const fileInputRef = useRef(null);
+
+        useEffect(() => {
+          const saved = localStorage.getItem('niigata_expenses');
+          if (saved) {
+            try {
+              setExpenses(JSON.parse(saved));
+            } catch (e) { console.error("Failed to load expenses"); }
+          }
+          
+          const savedRate = localStorage.getItem('niigata_rate');
+          if (savedRate) setRate(parseFloat(savedRate));
+        }, []);
+
+        useEffect(() => {
+          localStorage.setItem('niigata_expenses', JSON.stringify(expenses));
+        }, [expenses]);
+
+        const handleRateChange = (val) => {
+          const num = parseFloat(val);
+          setRate(num);
+          localStorage.setItem('niigata_rate', val);
+        };
+
+        const handleCalc = () => {
+          try {
+            if (!/^[0-9+\-*/.() ]+$/.test(calcInput)) return;
+            const result = new Function('return ' + calcInput)();
+            setCalcResult(result);
+          } catch (e) {
+            setCalcResult(null);
+          }
+        };
+
+        const compressImage = (file) => {
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+              const img = new Image();
+              img.src = event.target.result;
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 600;
+                const scaleSize = MAX_WIDTH / img.width;
+                canvas.width = MAX_WIDTH;
+                canvas.height = img.height * scaleSize;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', 0.5));
+              };
+            };
+          });
+        };
+
+        const addExpense = async () => {
+          if (!newExpenseName || !newExpenseAmount) return;
+
+          let imageBase64 = undefined;
+
+          if (fileInputRef.current && fileInputRef.current.files && fileInputRef.current.files[0]) {
+            imageBase64 = await compressImage(fileInputRef.current.files[0]);
+          }
+
+          const newExp = {
+            id: Date.now().toString(),
+            description: newExpenseName,
+            amountJPY: parseFloat(newExpenseAmount),
+            date: Date.now(),
+            receiptImageBase64: imageBase64
+          };
+
+          setExpenses([newExp, ...expenses]);
+          setNewExpenseName('');
+          setNewExpenseAmount('');
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        };
+
+        const deleteExpense = (id) => {
+          if(confirm('確定刪除此紀錄？')) {
+              setExpenses(expenses.filter(e => e.id !== id));
+          }
+        };
+
+        const totalJPY = expenses.reduce((acc, curr) => acc + curr.amountJPY, 0);
+
+        return (
+          <div className="p-4 bg-luxury-black min-h-full space-y-6">
+            
+            <div className="bg-luxury-charcoal p-5 rounded-2xl border border-gold-500/20 shadow-lg">
+              <h3 className="text-gold-400 font-serif mb-3">匯率換算</h3>
+              <div className="flex items-center space-x-2 mb-3">
+                <span className="text-xs text-gray-500">匯率 (日幣換台幣):</span>
+                <input 
+                  type="number" 
+                  value={rate}
+                  onChange={(e) => handleRateChange(e.target.value)}
+                  className="bg-luxury-black border border-gray-700 rounded px-2 py-1 w-20 text-right text-gold-100"
+                  step="0.001"
+                />
+              </div>
+              
+              <div className="flex gap-2">
+                  <input 
+                      type="text" 
+                      placeholder="例如 500+200*3" 
+                      value={calcInput}
+                      onChange={(e) => setCalcInput(e.target.value)}
+                      className="flex-1 bg-luxury-black border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-600 font-mono text-lg"
+                  />
+                  <button 
+                      onClick={handleCalc}
+                      className="bg-gold-500 text-black px-4 rounded-lg font-bold"
+                  >
+                      =
+                  </button>
+              </div>
+
+              {calcResult !== null && (
+                  <div className="mt-3 flex justify-between items-center border-t border-gray-700 pt-3">
+                      <div className="text-gray-400">日幣總額: <span className="text-white font-bold">{Math.round(calcResult).toLocaleString()}</span></div>
+                      <div className="text-gold-400 text-xl font-bold">NT$ {Math.round(calcResult * rate).toLocaleString()}</div>
+                  </div>
+              )}
+            </div>
+
+            <div className="bg-luxury-charcoal p-5 rounded-2xl border border-gray-800">
+              <h3 className="text-white font-serif mb-4">新增記帳</h3>
+              <div className="space-y-3">
+                  <input 
+                      type="text" 
+                      placeholder="品項名稱" 
+                      value={newExpenseName}
+                      onChange={(e) => setNewExpenseName(e.target.value)}
+                      className="w-full bg-luxury-black border border-gray-700 rounded p-3 text-white"
+                  />
+                  <div className="flex gap-2">
+                      <input 
+                          type="number" 
+                          placeholder="日幣金額" 
+                          value={newExpenseAmount}
+                          onChange={(e) => setNewExpenseAmount(e.target.value)}
+                          className="flex-1 bg-luxury-black border border-gray-700 rounded p-3 text-white"
+                      />
+                      <label className="flex items-center justify-center bg-gray-800 w-12 rounded border border-gray-700 cursor-pointer hover:bg-gray-700">
+                          <i className="fas fa-camera text-gold-400"></i>
+                          <input 
+                              type="file" 
+                              ref={fileInputRef} 
+                              accept="image/*" 
+                              capture="environment" 
+                              onChange={() => alert('照片已選擇')}
+                          />
+                      </label>
+                  </div>
+                  <button 
+                      onClick={addExpense}
+                      className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-3 rounded transition-colors"
+                  >
+                      儲存
+                  </button>
+              </div>
+            </div>
+
+            <div className="pb-8">
+              <div className="flex justify-between items-end mb-2 px-2">
+                  <h3 className="text-xl font-serif text-white">記帳紀錄</h3>
+                  <span className="text-xs text-gold-400">總計: NT$ {(totalJPY * rate).toLocaleString()}</span>
+              </div>
+              
+              <div className="space-y-3">
+                  {expenses.length === 0 && <p className="text-center text-gray-600 py-4">目前沒有紀錄</p>}
+                  {expenses.map((exp) => (
+                      <div key={exp.id} className="bg-luxury-charcoal p-4 rounded-xl border border-gray-800 flex justify-between items-center group">
+                          <div className="flex items-center gap-3">
+                              {exp.receiptImageBase64 ? (
+                                  <img src={exp.receiptImageBase64} alt="Receipt" className="w-10 h-10 rounded object-cover border border-gray-600" />
+                              ) : (
+                                  <div className="w-10 h-10 rounded bg-gray-800 flex items-center justify-center">
+                                      <i className="fas fa-receipt text-gray-600"></i>
+                                  </div>
+                              )}
+                              <div>
+                                  <div className="text-white font-medium">{exp.description}</div>
+                                  <div className="text-xs text-gray-500">{new Date(exp.date).toLocaleDateString()}</div>
+                              </div>
+                          </div>
+                          <div className="text-right">
+                              <div className="text-gold-100 font-bold">¥{exp.amountJPY.toLocaleString()}</div>
+                              <div className="text-xs text-gray-500">NT$ {Math.round(exp.amountJPY * rate).toLocaleString()}</div>
+                          </div>
+                          <button 
+                              onClick={() => deleteExpense(exp.id)}
+                              className="ml-3 text-gray-600 hover:text-red-500"
+                          >
+                              <i className="fas fa-trash-alt"></i>
+                          </button>
+                      </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      // 3. ListsView
+      const ListsView = () => {
+        const [todos, setTodos] = useState(PRE_TRIP_CHECKLIST);
+        const [memos, setMemos] = useState([]);
+        const [memoInput, setMemoInput] = useState('');
+        const [activeTab, setActiveTab] = useState('todo');
+
+        useEffect(() => {
+          const savedTodos = localStorage.getItem('niigata_todos');
+          if (savedTodos) setTodos(JSON.parse(savedTodos));
+          
+          const savedMemos = localStorage.getItem('niigata_memos');
+          if (savedMemos) setMemos(JSON.parse(savedMemos));
+        }, []);
+
+        useEffect(() => {
+          localStorage.setItem('niigata_todos', JSON.stringify(todos));
+        }, [todos]);
+
+        useEffect(() => {
+          localStorage.setItem('niigata_memos', JSON.stringify(memos));
+        }, [memos]);
+
+        const toggleTodo = (id) => {
+          setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+        };
+
+        const addMemo = () => {
+          if (!memoInput.trim()) return;
+          const newMemo = {
+            id: Date.now().toString(),
+            content: memoInput,
+            timestamp: Date.now()
+          };
+          setMemos([newMemo, ...memos]);
+          setMemoInput('');
+        };
+
+        const deleteMemo = (id) => {
+          setMemos(memos.filter(m => m.id !== id));
+        };
+
+        const renderContentWithLinks = (text) => {
+          const urlRegex = /(https?:\/\/[^\s]+)/g;
+          const parts = text.split(urlRegex);
+          return parts.map((part, i) => {
+              if (part.match(urlRegex)) {
+                  return (
+                      <a key={i} href={part} target="_blank" rel="noreferrer" className="text-gold-400 underline break-all">
+                          {part.length > 30 ? part.substring(0, 30) + '...' : part} <i className="fas fa-external-link-alt text-xs ml-1"></i>
+                      </a>
+                  );
+              }
+              return part;
+          });
+        };
+
+        return (
+          <div className="min-h-full bg-luxury-black p-4">
+            <div className="flex border-b border-gray-800 mb-6">
+              <button 
+                onClick={() => setActiveTab('todo')}
+                className={`flex-1 py-3 text-center font-serif transition-colors ${activeTab === 'todo' ? 'text-gold-400 border-b-2 border-gold-400' : 'text-gray-500'}`}
+              >
+                行前清單
+              </button>
+              <button 
+                onClick={() => setActiveTab('memo')}
+                className={`flex-1 py-3 text-center font-serif transition-colors ${activeTab === 'memo' ? 'text-gold-400 border-b-2 border-gold-400' : 'text-gray-500'}`}
+              >
+                備忘錄
+              </button>
+            </div>
+
+            {activeTab === 'todo' ? (
+              <div className="space-y-3">
+                {todos.map(todo => (
+                  <div 
+                      key={todo.id} 
+                      onClick={() => toggleTodo(todo.id)}
+                      className={`flex items-center p-4 rounded-xl border transition-all cursor-pointer ${
+                          todo.completed 
+                          ? 'bg-luxury-black border-gray-800 opacity-50' 
+                          : 'bg-luxury-charcoal border-gray-700'
+                      }`}
+                  >
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-4 transition-colors ${
+                          todo.completed ? 'bg-gold-500 border-gold-500 text-black' : 'border-gray-500'
+                      }`}>
+                          {todo.completed && <i className="fas fa-check text-xs"></i>}
+                      </div>
+                      <span className={`text-sm ${todo.completed ? 'line-through text-gray-500' : 'text-gray-200'}`}>
+                          {todo.text}
+                      </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                  <div className="bg-luxury-charcoal p-3 rounded-xl border border-gray-700">
+                      <textarea 
+                          value={memoInput}
+                          onChange={(e) => setMemoInput(e.target.value)}
+                          placeholder="輸入筆記或網址..."
+                          className="w-full bg-transparent text-white outline-none min-h-[80px] resize-none placeholder-gray-600"
+                      />
+                      <div className="flex justify-end mt-2">
+                          <button onClick={addMemo} className="bg-gold-600 text-black px-4 py-1.5 rounded text-sm font-bold">
+                              新增
+                          </button>
+                      </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                      {memos.map(memo => (
+                          <div key={memo.id} className="bg-luxury-black border border-gray-800 p-4 rounded-xl relative group">
+                              <button 
+                                  onClick={() => deleteMemo(memo.id)}
+                                  className="absolute top-2 right-2 text-gray-700 hover:text-red-500 p-2"
+                              >
+                                  <i className="fas fa-times"></i>
+                              </button>
+                              <div className="text-gray-300 text-sm whitespace-pre-wrap pr-6">
+                                  {renderContentWithLinks(memo.content)}
+                              </div>
+                              <div className="text-[10px] text-gray-600 mt-2">
+                                  {new Date(memo.timestamp).toLocaleString()}
+                              </div>
+                          </div>
+                      ))}
+                      {memos.length === 0 && <div className="text-center text-gray-600 py-10">尚無筆記</div>}
+                  </div>
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      // 4. InfoView (Removed Weather)
+      const InfoView = () => {
+        const ContactCard = ({ icon, title, number, desc }) => (
+          <div className="flex items-center bg-luxury-charcoal p-4 rounded-xl border border-gray-800 mb-3">
+            <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center mr-4 border border-gold-500/30">
+              <i className={`fas ${icon} text-gold-400`}></i>
+            </div>
+            <div className="flex-1">
+              <h4 className="text-white font-bold">{title}</h4>
+              {desc && <p className="text-xs text-gray-500">{desc}</p>}
+            </div>
+            {number && (
+              <a href={`tel:${number}`} className="bg-gray-800 text-gold-400 px-3 py-1 rounded text-sm font-mono border border-gray-700">
+                {number}
+              </a>
+            )}
+          </div>
+        );
+
+        return (
+          <div className="p-4 bg-luxury-black min-h-full">
+              <h2 className="text-2xl font-serif text-gold-400 mb-6">旅遊資訊</h2>
+
+              <section className="mb-8">
+                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3">緊急聯絡 (日本)</h3>
+                  <ContactCard icon="fa-shield-halved" title="警察局" number="110" />
+                  <ContactCard icon="fa-truck-medical" title="救護車 / 消防局" number="119" />
+                  <ContactCard icon="fa-building-columns" title="台北駐日經濟文化代表處" desc="TECO Japan" />
+              </section>
+
+              <section className="mb-8">
+                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3">違禁品 / 注意事項</h3>
+                  <div className="bg-red-900/20 border border-red-900/50 rounded-xl p-4">
+                      <ul className="space-y-2 text-sm text-gray-300">
+                          <li className="flex items-start"><i className="fas fa-ban text-red-500 mt-1 mr-2"></i> 禁止攜帶肉類製品 (香腸、肉乾)</li>
+                          <li className="flex items-start"><i className="fas fa-ban text-red-500 mt-1 mr-2"></i> 禁止攜帶新鮮蔬果</li>
+                          <li className="flex items-start"><i className="fas fa-triangle-exclamation text-yellow-500 mt-1 mr-2"></i> 液體超過 100ml 需託運</li>
+                      </ul>
+                  </div>
+              </section>
+
+              <div className="mt-12 text-center">
+                  <p className="text-[10px] text-gray-700 font-serif italic">Designed for 2026 新潟之旅</p>
+              </div>
+          </div>
+        );
+      };
+
+      // --- MAIN APP ---
+      const App = () => {
+        const [currentView, setCurrentView] = useState('PLAN');
+
+        const renderView = () => {
+          switch (currentView) {
+            case 'PLAN': return <PlanView />;
+            case 'WALLET': return <WalletView />;
+            case 'LISTS': return <ListsView />;
+            case 'INFO': return <InfoView />;
+            default: return <PlanView />;
+          }
+        };
+
+        const NavItem = ({ view, icon, label }) => (
+          <button
+            onClick={() => setCurrentView(view)}
+            className={`flex flex-col items-center justify-center w-full py-3 transition-colors duration-300 ${
+              currentView === view ? 'text-gold-400' : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            <i className={`fas ${icon} text-lg mb-1`}></i>
+            <span className="text-[10px] tracking-widest font-sans font-bold">{label}</span>
+          </button>
+        );
+
+        return (
+          <div className="flex flex-col h-screen bg-luxury-black text-white overflow-hidden">
+            {/* Top Bar */}
+            <header className="flex-none px-6 py-4 bg-luxury-charcoal border-b border-gold-400/20 shadow-lg z-10 flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-serif text-gold-400 tracking-wider">NIIGATA</h1>
+                <p className="text-[10px] text-gray-400 font-sans tracking-[0.2em] uppercase">2026 冬季奢華之旅</p>
+              </div>
+              <div className="w-8 h-8 rounded-full border border-gold-400/50 flex items-center justify-center">
+                  <i className="fas fa-snowflake text-gold-400 text-xs animate-pulse"></i>
+              </div>
+            </header>
+
+            {/* Main Content */}
+            <main className="flex-1 overflow-y-auto overflow-x-hidden relative bg-luxury-black scroll-smooth">
+              <div className="pb-20"> 
+                {renderView()}
+              </div>
+            </main>
+
+            {/* Bottom Nav */}
+            <nav className="flex-none fixed bottom-0 w-full bg-luxury-charcoal border-t border-gold-400/20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.3)] pb-safe z-50">
+              <div className="flex justify-around items-center px-2">
+                <NavItem view="PLAN" icon="fa-calendar-days" label="行程" />
+                <NavItem view="WALLET" icon="fa-wallet" label="記帳" />
+                <NavItem view="LISTS" icon="fa-list-check" label="清單" />
+                <NavItem view="INFO" icon="fa-circle-info" label="資訊" />
+              </div>
+            </nav>
+          </div>
+        );
+      };
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    </script>
   </body>
 </html>
